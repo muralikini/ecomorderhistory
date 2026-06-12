@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ecom Orders Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        body { font-family: 'Inter', system_ui, sans-serif; }
+        .metric-value { font-size: 1.75rem; font-weight: 700; line-height: 1; }
+        .expandable-row { cursor: pointer; }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-200">
+    <!-- Header -->
+    <div class="border-b border-zinc-800 bg-zinc-900">
+        <div class="max-w-screen-2xl mx-auto px-6 py-5">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-x-4">
+                    <div class="w-11 h-11 bg-indigo-600 rounded-2xl flex items-center justify-center">
+                        <i class="fas fa-shopping-bag text-white text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-bold tracking-tight">Ecom Orders</h1>
+                        <p class="text-zinc-400 text-sm">Unified Order Dashboard</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-x-3">
+                    <button onclick="uploadZip()" class="flex items-center gap-x-2 bg-white text-zinc-900 hover:bg-zinc-100 px-5 py-2.5 rounded-2xl font-semibold text-sm">
+                        <i class="fas fa-upload mr-2"></i>
+                        <span>Upload Google Drive ZIP</span>
+                    </button>
+                    <button onclick="resetData()" class="flex items-center gap-x-2 bg-zinc-800 hover:bg-zinc-700 px-4 py-2.5 rounded-2xl text-sm font-medium">
+                        <i class="fas fa-redo mr-2"></i>
+                        <span>Reset</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-screen-2xl mx-auto px-6 py-8">
+        
+        <div id="upload-status" class="hidden mb-6">
+            <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-4 flex items-center gap-x-3">
+                <div class="flex-1">
+                    <div class="flex items-center gap-x-3">
+                        <i class="fas fa-check-circle text-emerald-400"></i>
+                        <span id="upload-text" class="font-medium"></span>
+                    </div>
+                </div>
+                <div class="text-sm text-zinc-400">
+                    <span id="total-orders"></span> orders • <span id="total-sites"></span> portals
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-5">
+                <div class="text-zinc-400 text-sm mb-1">Total Orders</div>
+                <div id="total-orders-card" class="metric-value text-white">0</div>
+            </div>
+            <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-5">
+                <div class="text-zinc-400 text-sm mb-1">Total Spend</div>
+                <div id="total-spend-card" class="metric-value text-emerald-400">₹0</div>
+            </div>
+            <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-5">
+                <div class="text-zinc-400 text-sm mb-1">Active Portals</div>
+                <div id="total-portals-card" class="metric-value text-white">0</div>
+            </div>
+            <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-5">
+                <div class="text-zinc-400 text-sm mb-1">Date Range</div>
+                <div id="date-range-card" class="text-lg font-semibold text-white">-</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Year-wise Summary -->
+            <div class="lg:col-span-7 bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
+                <div class="flex items-center justify-between mb-5">
+                    <h3 class="section-header flex items-center gap-x-2">
+                        <i class="fas fa-calendar-alt text-indigo-400"></i>
+                        <span>Year-wise Summary</span>
+                    </h3>
+                </div>
+                <div id="year-summary" class="space-y-3"></div>
+            </div>
+
+            <!-- Site-wise Summary -->
+            <div class="lg:col-span-5 bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
+                <h3 class="section-header mb-5 flex items-center gap-x-2">
+                    <i class="fas fa-store text-indigo-400"></i>
+                    <span>By Portal</span>
+                </h3>
+                <div id="site-summary" class="space-y-3"></div>
+            </div>
+
+            <!-- Charts -->
+            <div class="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
+                    <h3 class="section-header mb-4">Spend by Year</h3>
+                    <canvas id="spend-chart" height="120"></canvas>
+                </div>
+                <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
+                    <h3 class="section-header mb-4">Orders by Portal</h3>
+                    <canvas id="orders-chart" height="120"></canvas>
+                </div>
+            </div>
+
+            <!-- All Orders with Year Filter -->
+            <div class="lg:col-span-12 bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                    <h3 class="section-header">All Orders</h3>
+                    
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <!-- Year Filter -->
+                        <div class="flex items-center gap-x-2">
+                            <label class="text-sm text-zinc-400">Year:</label>
+                            <select id="year-filter" onchange="applyFilters()" 
+                                    class="bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500">
+                                <option value="">All Years</option>
+                            </select>
+                        </div>
+                        
+                        <input type="text" id="search-input" placeholder="Search orders..." 
+                               class="bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-2 text-sm w-72 focus:outline-none focus:border-indigo-500"
+                               onkeyup="applyFilters()">
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-zinc-700 text-left text-zinc-400 text-xs uppercase tracking-wider">
+                                <th class="py-3 px-4">Date</th>
+                                <th class="py-3 px-4">Portal</th>
+                                <th class="py-3 px-4">Order ID</th>
+                                <th class="py-3 px-4">Item</th>
+                                <th class="py-3 px-4 text-right">Amount</th>
+                                <th class="py-3 px-4">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-table-body" class="divide-y divide-zinc-800"></tbody>
+                    </table>
+                </div>
+                <div id="pagination" class="flex justify-between items-center mt-4 text-sm"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allOrders = [];
+        let currentPage = 1;
+        const itemsPerPage = 30;
+        let charts = {};
+
+        // ==================== ROBUST DATE PARSER ====================
+        function parseFlexibleDate(dateStr) {
+            if (!dateStr) return null;
+            
+            dateStr = dateStr.toString().trim();
+            
+            // Try DD-MM-YYYY or DD/MM/YYYY (Flipkart style)
+            const ddmmyyyy = dateStr.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+            if (ddmmyyyy) {
+                const day = parseInt(ddmmyyyy[1]);
+                const month = parseInt(ddmmyyyy[2]);
+                const year = parseInt(ddmmyyyy[3]);
+                return new Date(year, month - 1, day);
+            }
+            
+            // Try YYYY-MM-DD
+            const yyyymmdd = dateStr.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+            if (yyyymmdd) {
+                return new Date(dateStr);
+            }
+            
+            // Fallback
+            const d = new Date(dateStr);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        async function uploadZip() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.zip';
+            
+            input.onchange = async function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const statusDiv = document.getElementById('upload-status');
+                statusDiv.classList.remove('hidden');
+                document.getElementById('upload-text').innerHTML = `Processing <strong>${file.name}</strong>...`;
+
+                try {
+                    const zip = await JSZip.loadAsync(file);
+                    const orders = await processZip(zip);
+                    
+                    allOrders = orders;
+                    renderDashboard();
+                    
+                    document.getElementById('upload-text').innerHTML = `Loaded <strong>${orders.length}</strong> orders`;
+                    
+                } catch (error) {
+                    alert("Error: " + error.message);
+                    console.error(error);
+                }
+            };
+            input.click();
+        }
+
+        async function processZip(zip) {
+            const orders = [];
+            
+            for (const [path, file] of Object.entries(zip.files)) {
+                if (file.dir || !path.toLowerCase().endsWith('.csv')) continue;
+                
+                const parts = path.split('/');
+                let portalName = parts.length > 1 ? parts[parts.length - 2] : 'Unknown';
+                portalName = portalName.replace(/_/g, ' ').trim();
+                
+                try {
+                    const content = await file.async('string');
+                    const parsed = Papa.parse(content, {
+                        header: true,
+                        skipEmptyLines: true,
+                        transformHeader: h => h.trim()
+                    });
+                    
+                    parsed.data.forEach(row => {
+                        const normalized = normalizeOrder(row, portalName, path);
+                        if (normalized && normalized.amount > 0) {
+                            orders.push(normalized);
+                        }
+                    });
+                    
+                } catch (err) {
+                    console.warn(`Skipped: ${path}`);
+                }
+            }
+            return orders;
+        }
+
+        function normalizeOrder(row, portalName, filePath) {
+            const getVal = (keys) => {
+                const headers = Object.keys(row);
+                for (let k of keys) {
+                    const match = headers.find(h => h.toLowerCase().includes(k.toLowerCase()));
+                    if (match && row[match]) return row[match];
+                }
+                return null;
+            };
+
+            let dateStr = getVal(['order date', 'date', 'purchase date', 'order_date']);
+            
+            // Parse date properly
+            const parsedDate = parseFlexibleDate(dateStr);
+            const finalDate = parsedDate ? parsedDate.toISOString().split('T')[0] : null;
+
+            let amountStr = getVal(['total', 'grand total', 'amount', 'invoice amount', 'order total']);
+            let amount = 0;
+            if (amountStr) {
+                amountStr = amountStr.toString().replace(/[₹,₹\s]/g, '');
+                amount = parseFloat(amountStr) || 0;
+            }
+
+            const orderId = getVal(['order id', 'order number', 'id']) || 'N/A';
+            const status = getVal(['status', 'order status']) || 'Unknown';
+            const item = getVal(['item', 'product', 'description']) || 'N/A';
+
+            if (!finalDate && amount === 0) return null;
+
+            return {
+                date: finalDate || '',
+                amount: amount,
+                orderId,
+                status,
+                item,
+                portal: portalName
+            };
+        }
+
+        function renderDashboard() {
+            if (allOrders.length === 0) return;
+
+            document.getElementById('total-orders-card').textContent = allOrders.length.toLocaleString();
+            
+            const totalSpend = allOrders.reduce((sum, o) => sum + o.amount, 0);
+            document.getElementById('total-spend-card').textContent = '₹' + totalSpend.toLocaleString('en-IN');
+            
+            const portals = [...new Set(allOrders.map(o => o.portal))];
+            document.getElementById('total-portals-card').textContent = portals.length;
+
+            const validDates = allOrders.map(o => new Date(o.date)).filter(d => !isNaN(d));
+            if (validDates.length > 0) {
+                const min = new Date(Math.min(...validDates));
+                const max = new Date(Math.max(...validDates));
+                document.getElementById('date-range-card').innerHTML = `${min.getFullYear()} - ${max.getFullYear()}`;
+            }
+
+            renderYearSummaryWithMonths();
+            renderSiteSummary();
+            renderCharts();
+            populateYearFilter();
+            renderOrdersTable();
+            
+            document.getElementById('upload-status').classList.remove('hidden');
+        }
+
+        function populateYearFilter() {
+            const select = document.getElementById('year-filter');
+            select.innerHTML = '<option value="">All Years</option>';
+            
+            const years = [...new Set(allOrders.map(o => {
+                if (!o.date) return null;
+                const d = new Date(o.date);
+                return isNaN(d) ? null : d.getFullYear();
+            }).filter(Boolean))].sort((a, b) => b - a);
+            
+            years.forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                select.appendChild(option);
+            });
+        }
+
+        function applyFilters() {
+            const yearFilter = document.getElementById('year-filter').value;
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            
+            let filtered = allOrders;
+            
+            if (yearFilter) {
+                filtered = filtered.filter(order => {
+                    if (!order.date) return false;
+                    const d = new Date(order.date);
+                    return !isNaN(d) && d.getFullYear() == yearFilter;
+                });
+            }
+            
+            if (searchTerm) {
+                filtered = filtered.filter(order => 
+                    (order.orderId && order.orderId.toLowerCase().includes(searchTerm)) ||
+                    (order.item && order.item.toLowerCase().includes(searchTerm)) ||
+                    (order.portal && order.portal.toLowerCase().includes(searchTerm))
+                );
+            }
+            
+            currentPage = 1;
+            renderOrdersTable(filtered);
+        }
+
+        function renderYearSummaryWithMonths() {
+            const container = document.getElementById('year-summary');
+            container.innerHTML = '';
+
+            const yearData = {};
+            
+            allOrders.forEach(order => {
+                let year = 'Unknown';
+                let month = 'Unknown';
+                
+                if (order.date) {
+                    const d = new Date(order.date);
+                    if (!isNaN(d.getTime())) {
+                        year = d.getFullYear();
+                        month = d.toLocaleString('default', { month: 'short' });
+                    }
+                }
+                
+                if (!yearData[year]) yearData[year] = { count: 0, spend: 0, months: {} };
+                yearData[year].count++;
+                yearData[year].spend += order.amount;
+                
+                if (!yearData[year].months[month]) yearData[year].months[month] = { count: 0, spend: 0 };
+                yearData[year].months[month].count++;
+                yearData[year].months[month].spend += order.amount;
+            });
+
+            const sortedYears = Object.keys(yearData).sort((a, b) => b.localeCompare(a));
+
+            sortedYears.forEach(year => {
+                const data = yearData[year];
+                
+                const yearDiv = document.createElement('div');
+                yearDiv.className = 'border border-zinc-700 rounded-2xl overflow-hidden';
+                
+                yearDiv.innerHTML = `
+                    <div onclick="toggleYearExpansion(this)" class="expandable-row flex items-center justify-between px-5 py-4 bg-zinc-800">
+                        <div class="flex items-center gap-x-3">
+                            <i class="fas fa-chevron-down text-zinc-400 w-4 transition-transform"></i>
+                            <span class="font-semibold text-lg">${year}</span>
+                        </div>
+                        <div class="flex items-center gap-x-8 text-sm">
+                            <div>${data.count} orders</div>
+                            <div class="font-semibold text-emerald-400">₹${data.spend.toLocaleString('en-IN')}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="month-details hidden p-4 bg-zinc-950 border-t border-zinc-700">
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                            ${Object.entries(data.months).map(([month, mData]) => `
+                                <div class="month-card bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-3 flex justify-between items-center">
+                                    <span class="font-medium">${month}</span>
+                                    <div class="text-right">
+                                        <div class="font-semibold text-sm">₹${mData.spend.toLocaleString('en-IN')}</div>
+                                        <div class="text-xs text-zinc-400">${mData.count} orders</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(yearDiv);
+            });
+        }
+
+        function toggleYearExpansion(element) {
+            const details = element.nextElementSibling;
+            const icon = element.querySelector('i');
+            details.classList.toggle('hidden');
+            icon.classList.toggle('fa-chevron-down');
+            icon.classList.toggle('fa-chevron-up');
+        }
+
+        function renderSiteSummary() {
+            const container = document.getElementById('site-summary');
+            container.innerHTML = '';
+
+            const siteData = {};
+            allOrders.forEach(order => {
+                if (!siteData[order.portal]) siteData[order.portal] = { count: 0, spend: 0 };
+                siteData[order.portal].count++;
+                siteData[order.portal].spend += order.amount;
+            });
+
+            Object.entries(siteData).sort((a,b) => b[1].spend - a[1].spend).forEach(([site, data]) => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center bg-zinc-800 px-4 py-3.5 rounded-2xl';
+                div.innerHTML = `
+                    <div class="flex items-center gap-x-3">
+                        <div class="w-8 h-8 bg-indigo-600/20 text-indigo-400 rounded-2xl flex items-center justify-center">
+                            <i class="fas fa-store"></i>
+                        </div>
+                        <span class="font-medium">${site}</span>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-semibold">₹${data.spend.toLocaleString('en-IN')}</div>
+                        <div class="text-xs text-zinc-400">${data.count} orders</div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function renderCharts() {
+            if (charts.spend) charts.spend.destroy();
+            if (charts.orders) charts.orders.destroy();
+
+            const yearSpend = {};
+            allOrders.forEach(o => {
+                let year = 'Unknown';
+                if (o.date) {
+                    const d = new Date(o.date);
+                    if (!isNaN(d)) year = d.getFullYear();
+                }
+                yearSpend[year] = (yearSpend[year] || 0) + o.amount;
+            });
+
+            const years = Object.keys(yearSpend).sort();
+            charts.spend = new Chart(document.getElementById('spend-chart'), {
+                type: 'bar',
+                data: {
+                    labels: years,
+                    datasets: [{ data: years.map(y => yearSpend[y]), backgroundColor: '#6366f1', borderRadius: 6 }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+
+            const portalCount = {};
+            allOrders.forEach(o => portalCount[o.portal] = (portalCount[o.portal] || 0) + 1);
+
+            charts.orders = new Chart(document.getElementById('orders-chart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(portalCount),
+                    datasets: [{ data: Object.values(portalCount), backgroundColor: ['#6366f1', '#22c55e', '#eab308', '#ec4899'] }]
+                }
+            });
+        }
+
+        let filteredOrders = [];
+
+        function renderOrdersTable(filtered = null) {
+            const tbody = document.getElementById('orders-table-body');
+            tbody.innerHTML = '';
+            filteredOrders = filtered || allOrders;
+
+            const start = (currentPage - 1) * itemsPerPage;
+            const pageData = filteredOrders.slice(start, start + itemsPerPage);
+
+            pageData.forEach(order => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-zinc-800';
+                row.innerHTML = `
+                    <td class="py-3 px-4 text-sm">${order.date || '-'}</td>
+                    <td class="py-3 px-4"><span class="text-xs px-2.5 py-1 rounded-full bg-indigo-600/20 text-indigo-400">${order.portal}</span></td>
+                    <td class="py-3 px-4 font-mono text-xs">${order.orderId}</td>
+                    <td class="py-3 px-4 text-sm max-w-xs truncate">${order.item}</td>
+                    <td class="py-3 px-4 text-right font-medium">₹${order.amount.toLocaleString('en-IN')}</td>
+                    <td class="py-3 px-4"><span class="text-xs px-2.5 py-1 rounded-full ${getStatusColor(order.status)}">${order.status}</span></td>
+                `;
+                tbody.appendChild(row);
+            });
+            renderPagination();
+        }
+
+        function getStatusColor(status) {
+            const s = status.toLowerCase();
+            if (s.includes('delivered')) return 'bg-emerald-500/20 text-emerald-400';
+            if (s.includes('shipped')) return 'bg-blue-500/20 text-blue-400';
+            if (s.includes('cancel')) return 'bg-red-500/20 text-red-400';
+            return 'bg-zinc-600/30 text-zinc-300';
+        }
+
+        function renderPagination() {
+            const container = document.getElementById('pagination');
+            const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+            container.innerHTML = `
+                <div class="text-zinc-400">Page ${currentPage} of ${totalPages}</div>
+                <div class="flex gap-x-2">
+                    <button onclick="changePage(${currentPage-1})" class="px-4 py-1.5 bg-zinc-800 rounded-xl text-sm" ${currentPage===1?'disabled':''}>Previous</button>
+                    <button onclick="changePage(${currentPage+1})" class="px-4 py-1.5 bg-zinc-800 rounded-xl text-sm" ${currentPage===totalPages?'disabled':''}>Next</button>
+                </div>
+            `;
+        }
+
+        function changePage(page) {
+            if (page < 1 || page > Math.ceil(filteredOrders.length / itemsPerPage)) return;
+            currentPage = page;
+            renderOrdersTable(filteredOrders);
+        }
+
+        function resetData() {
+            allOrders = [];
+            document.getElementById('upload-status').classList.add('hidden');
+            document.getElementById('year-summary').innerHTML = '';
+            document.getElementById('site-summary').innerHTML = '';
+            document.getElementById('orders-table-body').innerHTML = '';
+            document.getElementById('year-filter').innerHTML = '<option value="">All Years</option>';
+            if (charts.spend) charts.spend.destroy();
+            if (charts.orders) charts.orders.destroy();
+        }
+
+        function init() {
+            console.log("%c[Ecom Dashboard] DD-MM-YYYY date parsing fixed for Flipkart", "color:#22c55e");
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
