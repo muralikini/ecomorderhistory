@@ -213,7 +213,6 @@
                     
                 } catch (error) {
                     alert("Error: " + error.message);
-                    console.error(error);
                 }
             };
             input.click();
@@ -606,7 +605,8 @@
         }
 
         function init() {
-            console.log("%c[Ecom Dashboard] DD-MM-YYYY date parsing fixed for Flipkart", "color:#22c55e");
+            autoLoadFromZip();
+            console.log("%c[Ecom Dashboard] Auto-load enabled. Place 'orders-data.zip' in the same folder.", "color:#22c55e");
         }
 
         window.onload = init;
