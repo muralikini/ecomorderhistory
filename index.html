@@ -29,15 +29,17 @@
                         <p class="text-zinc-400 text-sm">Unified Order Dashboard</p>
                     </div>
                 </div>
+
+
                 
                 <div class="flex items-center gap-x-3">
                     <button onclick="uploadZip()" class="flex items-center gap-x-2 bg-white text-zinc-900 hover:bg-zinc-100 px-5 py-2.5 rounded-2xl font-semibold text-sm">
                         <i class="fas fa-upload mr-2"></i>
                         <span>Upload Google Drive ZIP</span>
                     </button>
-                    <button onclick="resetData()" class="flex items-center gap-x-2 bg-zinc-800 hover:bg-zinc-700 px-4 py-2.5 rounded-2xl text-sm font-medium">
+                    <button onclick="reloadFromZip()" class="flex items-center gap-x-2 bg-zinc-800 hover:bg-zinc-700 px-4 py-2.5 rounded-2xl text-sm font-medium">
                         <i class="fas fa-redo mr-2"></i>
-                        <span>Reset</span>
+                        <span>Reload</span>
                     </button>
                 </div>
             </div>
@@ -560,6 +562,47 @@
             document.getElementById('year-filter').innerHTML = '<option value="">All Years</option>';
             if (charts.spend) charts.spend.destroy();
             if (charts.orders) charts.orders.destroy();
+        }
+
+        // ==================== AUTO LOAD FROM orders-data.zip ====================
+        async function autoLoadFromZip() {
+            try {
+                const response = await fetch('orders-data.zip');
+                if (!response.ok) {
+                    console.log("orders-data.zip not found. Waiting for manual upload.");
+                    return false;
+                }
+
+                const blob = await response.blob();
+                const zip = await JSZip.loadAsync(blob);
+                const orders = await processZip(zip);
+                
+                allOrders = orders;
+                renderDashboard();
+
+                // Show auto-load status
+                const status = document.getElementById('auto-load-status');
+                status.classList.remove('hidden');
+                status.classList.add('flex');
+
+                document.getElementById('upload-text').innerHTML = `Auto-loaded from <strong>orders-data.zip</strong>`;
+                document.getElementById('upload-status').classList.remove('hidden');
+
+                return true;
+            } catch (error) {
+                console.log("Could not auto-load orders-data.zip:", error);
+                return false;
+            }
+        }
+
+        async function reloadFromZip() {
+            const status = document.getElementById('auto-load-status');
+            status.classList.add('hidden');
+            
+            const success = await autoLoadFromZip();
+            if (!success) {
+                alert("Could not find orders-data.zip in the current folder.");
+            }
         }
 
         function init() {
